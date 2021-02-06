@@ -182,14 +182,29 @@ class GUI:
         if(dat != "done_login".encode("utf8")):
             exit()
 
-        time.sleep(0.1)
-        s.send("req_key".encode("utf8"))
-        print("req_key")
-        keydat = s.recv(0xFFFFFFFF)
-        key = int.from_bytes(keydat,'big')
+        # time.sleep(0.1)
+        # s.send("req_key".encode("utf8"))
+        # print("req_key")
+        # keydat = s.recv(0xFFFFFFFF)
+        # key = int.from_bytes(keydat,'big')
 
-        print(hex(key))
-        print(keydat)
+        # print(hex(key))
+        # print(keydat)
+
+
+
+        time.sleep(0.1)
+        s.send("req_key_safe".encode("utf8"))
+        print("req_key_safe")
+        keydat = s.recv(0xFFFFFFFF)
+        print("keydat", hex(int.from_bytes(keydat, 'big')))       #The key is encrypted with our password. Decrypt it
+
+        userpasswd = int.from_bytes(pwd.encode("utf8"), 'big')
+        
+
+        key = int.from_bytes(keydat,'big') - (userpasswd ** 2)
+        print("key", key)
+        print("pwd", hex(userpasswd))
         # the thread to receive messages 
         rcv = threading.Thread(target=self.receive) 
         rcv.start() 

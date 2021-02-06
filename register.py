@@ -6,7 +6,7 @@ HOST = '127.0.0.1'  # The server's hostname or IP address
 PORT = 27735        # The port used by the server
 
 
-uname = "test"
+uname = "kahve"
 pwd = "123456"
 
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

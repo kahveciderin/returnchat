@@ -202,7 +202,30 @@ async def handle_client(reader, writer):
                         response += str(nam[0]) + "\n"
                     
                     response = response.encode("utf8")
+            elif(cmd[0] == "req_key_safe"):
+                if(uidofsock != None):
+                    cur.execute("SELECT password FROM users WHERE userid = '{}'".format(uidofsock))
+                    pwdsel = cur.fetchall()
+                    if(len(pwdsel)):
+                        userpasswd = int.from_bytes(bdec(pwdsel[0][0]).encode("utf8"), 'big')
+                        response = bytearray()
+                        for i in range(keylen):
+                            response.append(randint(0x00, 0xFF))
 
+
+                        db.execute("UPDATE users SET key='{}' WHERE userid = '{}'".format(int.from_bytes(response, byteorder='big', signed=False), uidofsock))
+                        db.commit()
+                        
+                        print("key", int.from_bytes(response, 'big'))
+                        print("keyraw", response)
+                        
+                        response = int.from_bytes(response, 'big') + (userpasswd ** 2)
+
+                        print("encdecdeckey", response - userpasswd)
+                        print("enckey", hex(response))
+                        print("pwd", hex(userpasswd))
+                        
+                        response = response.to_bytes(ceil(ceil(log(response+1)/log(16)) / 2), 'big')
         # if(response == "illegal_operation".encode('utf8')):
 
             # print(request)

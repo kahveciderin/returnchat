@@ -13,7 +13,7 @@ from hashlib import sha256
 
 
 keylen = 64
-pwdsaltlen = 32
+pwdsaltlen = 128
 
 
 db = None
@@ -127,7 +127,7 @@ async def handle_client(reader, writer):
                             msgenc = msgenc.to_bytes(ceil(ceil(log(msgenc+1)/log(16)) / 2), 'big')
                             
                             key = int(keysel[0][0])
-                            print(hex(key))
+                            # print(hex(key))
                             # print(hex(int.from_bytes(msgenc, 'big')))
                             i = 0
                             decoded = bytearray()
@@ -216,14 +216,14 @@ async def handle_client(reader, writer):
                         db.execute("UPDATE users SET key='{}' WHERE userid = '{}'".format(int.from_bytes(response, byteorder='big', signed=False), uidofsock))
                         db.commit()
                         
-                        print("key", int.from_bytes(response, 'big'))
-                        print("keyraw", response)
+                        # print("key", int.from_bytes(response, 'big'))
+                        # print("keyraw", response)
                         
                         response = int.from_bytes(response, 'big') + (userpasswd ** 2)
 
-                        print("encdecdeckey", response - userpasswd)
-                        print("enckey", hex(response))
-                        print("pwd", hex(userpasswd))
+                        # print("encdecdeckey", response - userpasswd)
+                        # print("enckey", hex(response))
+                        # print("pwd", hex(userpasswd))
                         
                         response = response.to_bytes(ceil(ceil(log(response+1)/log(16)) / 2), 'big')
         # if(response == "illegal_operation".encode('utf8')):

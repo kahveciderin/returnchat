@@ -130,9 +130,9 @@ class GUI:
                         font = "Helvetica 14 bold", 
                         command = lambda: self.goAhead(self.entryName.get(), self.entryPwd.get(), self.entryServer.get())) 
 
-        self.entryServer.insert(0,"127.0.0.1")
-        self.entryName.insert(0,"kahve")
-        self.entryPwd.insert(0,"123456")
+        self.entryServer.insert(0,"kahveciderin.com")
+        # self.entryName.insert(0,"kahve")
+        # self.entryPwd.insert(0,"123456")
 
         self.go.place(relx = 0.4, 
                     rely = 0.85) 

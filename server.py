@@ -9,8 +9,13 @@ import base64
 from decimal import Decimal
 
 import time, datetime
+from hashlib import sha256
+
 
 keylen = 64
+pwdsaltlen = 32
+
+
 db = None
 cur = None
 import atexit
@@ -47,7 +52,12 @@ def create_connection(db_file):
 
 async def handle_client(reader, writer):
     request = None
+    uidofsock = None
+    saltofsock = None
     while request != 'quit':
+
+        
+
         try:
             request = (await reader.read(0xFFFF)).decode('utf8').strip()
         except:
@@ -56,16 +66,41 @@ async def handle_client(reader, writer):
         response = "illegal_operation".encode('utf8')
         cmd = request.split()
         if(len(cmd) > 0):
-            if(cmd[0] == "req_key"):
+            if(cmd[0] == "req_login"):
+                salta = ""
+                for ig in range(pwdsaltlen):
+                    salta += chr(randint(0x20, 0x7E))
+                response = salta.encode("utf8")
+                saltofsock = salta
+                #print(salta)
+            elif(cmd[0] == "req_confirm"):
                 if(len(cmd) == 3):
-                    cur.execute("SELECT username FROM users WHERE userid = '{}' AND password = '{}'".format(chnt(cmd[1]), benc(cmd[2])))
-                    if(len(cur.fetchall())):
+                    # print(saltofsock)
+                    if(saltofsock != None):
+                        
+                        cur.execute("SELECT password FROM users WHERE userid = '{}'".format(chnt(cmd[1])))
+                        selpwd = cur.fetchall()
+                        
+                        if(len(selpwd)):
+                            h = sha256()
+                            
+                            h.update((bdec(selpwd[0][0]) + saltofsock).encode("utf8"))
+                            if(h.hexdigest() == cmd[2]):
+                                uidofsock = chnt(cmd[1])
+                                response = "done_login".encode("utf8")
+            elif(cmd[0] == "req_key"):
+                if(uidofsock != None):
+                    cur.execute("SELECT key FROM users WHERE userid = '{}'".format(uidofsock))
+                    keysel = cur.fetchall()
+                    if(len(keysel)):
                         response = bytearray()
                         for i in range(keylen):
                             response.append(randint(0x00, 0xFF))
-                        db.execute("UPDATE users SET key='{}' WHERE userid = '{}'".format(int.from_bytes(response, byteorder='big', signed=False), chnt(cmd[1])))
+                        db.execute("UPDATE users SET key='{}' WHERE userid = '{}'".format(int.from_bytes(response, byteorder='big', signed=False), uidofsock))
                         db.commit()
-                        #print(hex(int.from_bytes(response, 'big')))
+                        # response = keysel[0][0].encode("utf8")
+                        # print(hex(int(keysel[0][0])))
+                        # print(hex(int.from_bytes(response, 'big')))
             elif(cmd[0] == "req_register"):
                 if(len(cmd) == 3):
                     key = bytearray()
@@ -80,38 +115,39 @@ async def handle_client(reader, writer):
                         response = key
 
             elif(cmd[0] == "snd_msg"):
-                if(len(cmd) == 5):
-                    cur.execute("SELECT key FROM users WHERE userid = '{}' AND password = '{}'".format(chnt(cmd[1]), benc(cmd[2])))
-                    keysel = cur.fetchall()
-                    if(len(keysel)):
-                        response = "MSG_SNT".encode("utf8")
-                        msgenc = " ".join(cmd[4:])
-                        msgenc = int(msgenc, 16)
-                        
-                        msgenc = msgenc.to_bytes(ceil(ceil(log(msgenc+1)/log(16)) / 2), 'big')
-                        
-                        key = int(keysel[0][0])
-                        # print(key)
-                        # print(hex(int.from_bytes(msgenc, 'big')))
-                        i = 0
-                        decoded = bytearray()
-                        
-                        for char in msgenc:
-                            # print(char)
-                            decoded += ((char - ((key & (0xFF * (1 << int(((i) % ceil(log(key+1)/log(16)) / 2) * 8)))) >> (int(((i) % ceil(log(key+1)/log(16)) / 2) * 8)))) % 0x100).to_bytes(1, 'big')
-                            i += 1
-                        # print(decoded)
-                        
-                        # print("INSERT INTO messages (frusr, tousr, msg) VALUES ({}, {}, '{}')".format(cmd[1], chnt(cmd[3]), hex(int.from_bytes(decoded, 'big'))[2:]))
-                        db.execute("INSERT INTO messages (frusr, tousr, msg) VALUES ({}, {}, '{}')".format(cmd[1], chnt(cmd[3]), hex(int.from_bytes(decoded, 'big'))[2:]))
-                        db.commit()
-            elif(cmd[0] == "req_msg"):
                 if(len(cmd) == 3):
-                    cur.execute("SELECT key FROM users WHERE userid = '{}' AND password = '{}'".format(chnt(cmd[1]), benc(cmd[2])))
+                    if(uidofsock != None):
+                        cur.execute("SELECT key FROM users WHERE userid = '{}'".format(uidofsock))
+                        keysel = cur.fetchall()
+                        if(len(keysel)):
+                            response = "MSG_SNT".encode("utf8")
+                            msgenc = " ".join(cmd[2:])
+                            msgenc = int(msgenc, 16)
+                            
+                            msgenc = msgenc.to_bytes(ceil(ceil(log(msgenc+1)/log(16)) / 2), 'big')
+                            
+                            key = int(keysel[0][0])
+                            print(hex(key))
+                            # print(hex(int.from_bytes(msgenc, 'big')))
+                            i = 0
+                            decoded = bytearray()
+                            
+                            for char in msgenc:
+                                # print(char)
+                                decoded += ((char - ((key & (0xFF * (1 << int(((i) % ceil(log(key+1)/log(16)) / 2) * 8)))) >> (int(((i) % ceil(log(key+1)/log(16)) / 2) * 8)))) % 0x100).to_bytes(1, 'big')
+                                i += 1
+                            # print(decoded)
+                            
+                            # print("INSERT INTO messages (frusr, tousr, msg) VALUES ({}, {}, '{}')".format(uidofsock, chnt(cmd[1]), hex(int.from_bytes(decoded, 'big'))[2:]))
+                            db.execute("INSERT INTO messages (frusr, tousr, msg) VALUES ({}, {}, '{}')".format(uidofsock, chnt(cmd[1]), hex(int.from_bytes(decoded, 'big'))[2:]))
+                            db.commit()
+            elif(cmd[0] == "req_msg"):
+                if(uidofsock != None):
+                    cur.execute("SELECT key FROM users WHERE userid = '{}'".format(uidofsock))
                     keysel = cur.fetchall()
                    
                     if(len(keysel)):
-                        cur.execute("SELECT * FROM messages WHERE tousr = '{}'".format(cmd[1]))
+                        cur.execute("SELECT * FROM messages WHERE tousr = '{}'".format(uidofsock))
                         unrdmsgs = cur.fetchall()
                         response = ""
                         key = int(keysel[0][0])
@@ -132,7 +168,7 @@ async def handle_client(reader, writer):
                                                 >> (int(((i) % ceil(log(key+1)/log(16)) / 2) * 8)))) % 0x100).to_bytes(1, 'big')
                             i += 1
                         response = "msg_resp\n".encode("utf8") + result
-                        db.execute("DELETE FROM messages WHERE tousr={}".format(cmd[1]))
+                        db.execute("DELETE FROM messages WHERE tousr={}".format(uidofsock))
                         db.commit()
 
             elif(cmd[0] == "req_whois"):
@@ -171,6 +207,10 @@ async def handle_client(reader, writer):
 
             # print(request)
         # print(response)
+
+        # print(request)
+        # print(response)
+        # print("##############################################")
         writer.write(response)
         try:
             await writer.drain()

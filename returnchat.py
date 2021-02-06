@@ -31,7 +31,6 @@ class GUI:
     key = None
 
     uid = None
-    pwd = None
 
 
     
@@ -82,7 +81,7 @@ class GUI:
                             relx = 0.35, 
                             rely = 0.2) 
 
-        self.entryServer.insert(0,"kahveciderin.com")
+        
         # create a Label 
         self.labelName = Label(self.login, 
                             text = "Name: ", 
@@ -130,7 +129,11 @@ class GUI:
                         text = "CONTINUE", 
                         font = "Helvetica 14 bold", 
                         command = lambda: self.goAhead(self.entryName.get(), self.entryPwd.get(), self.entryServer.get())) 
-        
+
+        self.entryServer.insert(0,"127.0.0.1")
+        self.entryName.insert(0,"kahve")
+        self.entryPwd.insert(0,"123456")
+
         self.go.place(relx = 0.4, 
                     rely = 0.85) 
         self.Window.mainloop() 
@@ -139,10 +142,7 @@ class GUI:
 
         
         global uid
-        global pwd
         global key
-        # global s
-
 
         h = sha256()
         h.update(passwd.encode("utf8"))
@@ -157,28 +157,39 @@ class GUI:
 
         s.send("req_whoami {}".format(name).encode("utf8"))
         print("req_whoami {}".format(name))
-
-
         dat = s.recv(0xFFFFFFFF)
-
         if(dat == "whoami_resp\n".encode("utf8")):
             exit()
+        uid = int(dat.decode("utf8").split("\n")[1].strip()) #We know our userid 
         
-        
-        s.send("req_key {} {}".format(dat.decode("utf8").split("\n")[1].strip(), pwd).encode("utf8"))
-        print("req_key {} {}".format(dat.decode("utf8").split("\n")[1].strip(), pwd))
+        time.sleep(0.1)
+        s.send("req_login".encode("utf8"))
+        print("req_login")
+        salt = s.recv(0xFFFFFFFF).decode("utf8")
 
-        uid = int(dat.decode("utf8").split("\n")[1].strip())
+        print(salt)
+        print((pwd + salt))
+        h = sha256()
+        h.update((pwd + salt).encode("utf8"))
+        sndsaltedpwd = h.hexdigest()
 
+        time.sleep(0.1)
+        s.send("req_confirm {} {}".format(uid, sndsaltedpwd).encode("utf8"))
+        print("req_confirm {} {}".format(uid, sndsaltedpwd).encode("utf8"))
         dat = s.recv(0xFFFFFFFF)
-        key = int.from_bytes(dat,'big')
-
-        print(key)
-
-        if(dat == "illegal_operation".encode("utf8")):
+        
+        print(dat)
+        if(dat != "done_login".encode("utf8")):
             exit()
 
-        
+        time.sleep(0.1)
+        s.send("req_key".encode("utf8"))
+        print("req_key")
+        keydat = s.recv(0xFFFFFFFF)
+        key = int.from_bytes(keydat,'big')
+
+        print(hex(key))
+        print(keydat)
         # the thread to receive messages 
         rcv = threading.Thread(target=self.receive) 
         rcv.start() 
@@ -300,7 +311,7 @@ class GUI:
     def receive(self):
         while True: 
             try: 
-                s.send("req_msg {} {}".format(uid, pwd).encode('utf-8'))
+                s.send("req_msg".encode("utf8"))
                 data = s.recv(0xFFFFFFFF) 
 
                 
@@ -409,14 +420,16 @@ class GUI:
                     a = ((char + ((key & (0xFF * (1 << int(((i) % ceil(log(key+1)/log(16)) / 2) * 8)))) >> (int(((i) % ceil(log(key+1)/log(16)) / 2) * 8)))) % 0x100).to_bytes(1, 'big')
                     result += a
                     i+=1
-                s.send("snd_msg {} {} {} {}".format(uid, pwd, unamid, hex(int.from_bytes(result,'big'))[2:]).encode('utf-8'))
-                print("snd_msg {} {} {} {}".format(uid, pwd, unamid, hex(int.from_bytes(result,'big'))[2:]).encode('utf-8'))
+                s.send("snd_msg {} {}".format(unamid, hex(int.from_bytes(result,'big'))[2:]).encode('utf-8'))
+                print("snd_msg {} {}".format(unamid, hex(int.from_bytes(result,'big'))[2:]).encode('utf-8'))
 
                 # insert messages to text box 
                 self.textCons.config(state = NORMAL) 
                 self.textCons.insert(END, "\n<<" + self.msg + "\n")                     
                 self.textCons.config(state = DISABLED) 
                 self.textCons.see(END) 
+
+                print(key)
                 #client.send(message.encode(FORMAT))	 
             break	
 
